@@ -1,0 +1,133 @@
+---
+title: "Problem Set One"
+author: "Christine Schulz"
+date: "January 22, 2022"
+output: 
+  pdf_document:
+    keep_tex: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Load in the gss_panel.RData file
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(fixest)
+library(sjPlot)
+
+
+load("~/R/gss_panel.RData")
+```
+# 2. Construct three visualizations that are aesthetically well formatted (axis labels, formatting, etc.)
+## Visualization 1: Raw correlations
+```{r, warning=FALSE, message=FALSE}
+gss_panel %>% 
+  filter(!is.na(natenviy)) %>% 
+  mutate(repub = as.factor(ifelse(as.factor(partyid)%in% 
+                                    c("4", "5", "6"), 1, 0)),
+         natenviy = factor(natenviy, labels = 
+                             c("Too little", "About right", 
+                               "Too much"))) %>% 
+  ggplot(aes(x = natenviy, color = repub, fill = repub)) +
+  geom_bar(position = "dodge")+
+  scale_color_manual(name = "Party",
+                     labels = c("Democrat", "Republican"), 
+                     values = c("blue", "red")) +
+  scale_fill_manual(name = "Party",
+                     labels = c("Democrat", "Republican"), 
+                     values = c("blue", "red")) +
+  labs(title = "Spending on the Environment 
+       by Political Political Party", 
+       x = "Environmental Spending",
+       y = "Count") +
+  theme_bw() 
+```
+## Visualization 2: Some sort of group-based visualization (ignoring time structure)
+```{r, warning=FALSE, message=FALSE}
+gss_panel$repub <- ifelse(as.factor(gss_panel$partyid)%in% 
+                            c("4", "5", "6"), 1, 0)
+gss_panel %>%
+  filter(!is.na(natenviy)) %>% 
+  mutate(natenviy = as.factor(natenviy),
+         repub = factor(repub, labels = 
+                          c("Democrat", "Republican"))) %>% 
+  ggplot(aes(x = age, color = natenviy, fill = natenviy, group = natenviy))+
+  geom_density(alpha = .4) +
+  facet_wrap(~ repub) +
+  scale_color_manual(name = "Environmental Spending",
+                     labels = c("Too little", "About right", "Too much"), 
+                     values = c("red", "green", "blue")) +
+  scale_fill_manual(name = "Environmental Spending",
+                    labels = c("Too little", "About right", "Too much"),
+                      values = c("red", "green", "blue")) +
+  labs(title = "Opinions on Environmental Spending by Age and Party",
+       x = "Age",
+       y = "Density") +
+  theme_bw()
+
+```
+## Visualization 3: A group and time-based visualization
+```{r, warning=FALSE, message=FALSE}
+gss_panel %>%
+  filter(!is.na(natenviy)) %>% 
+  mutate(natenviy = as.factor(natenviy),
+         repub = factor(repub, labels = c("Democrat", "Republican"))) %>% 
+  ggplot(aes(x = age, color = natenviy, fill = natenviy, group = natenviy))+
+  geom_density(alpha = .4) +
+  facet_wrap(~ year + repub) +
+  scale_color_manual(name = "Spending on the Environment",
+                     labels = c("Too little", "About right", "Too much"), 
+                     values = c("red", "green", "blue")) +
+  scale_fill_manual(name = "Spending on the Environment",
+                    labels = c("Too little", "About right", "Too much"),
+                      values = c("red", "green", "blue")) +
+  labs(title = "Opinions on Environmental Spending by Age, Party, and Year",
+       x = "Age",
+       y = "Density") +
+  theme_bw() 
+```
+
+# 3. Run two OLS models, including relevant controls -- and discuss WHY the controls are relevant. 
+# (Remember, you have a lot of flexibility here, including but not limited to interactions, fixed effects, recoding variables, etc.)
+## Model 1: Ignoring time element
+
+```{r, warning=FALSE, message=FALSE}
+gss_panel <- gss_panel %>% 
+  mutate(educ = as.factor(educ),
+         relig = factor(relig, labels = 
+                          c("Protestant", "Catholic", "Jewish",
+                            "None", "Other", "Buddhism", "Hinduism", 
+                            "Other Eastern Religions", "Muslim/Islam", 
+                            "Orthodox Christian", "Christian", 
+                            "Native American", "Inter-nondenominational")),
+         coninc = log(coninc),
+         natenviy = ifelse(natenviy == 2 | natenviy == 3, 0, 1))
+table(gss_panel$natenviy)
+
+
+m1 <- lm(natenviy ~ repub + age + repub:age, gss_panel)
+
+```
+
+## Model 2: Taking into account time element
+
+```{r, warning=FALSE, message=FALSE}
+m2 <- feols(natenviy ~ repub + age + relig + educ + coninc | year, se = "hetero", gss_panel)
+```
+
+# 4. Create an interesting and informative visualization using either coefficients from model 1 or 2 or predicted values from model 1 or 2.
+## Discuss why you think this visualization tells us something that wasn't necessarily obvious by just interpreting the model results.
+```{r, warning=FALSE, message=FALSE}
+plot_model(m1, type = "pred", terms = c("age", "repub"), 
+           title = "Predicted Values of Environmental Spending",
+           axis.title = c("Age", "Environmental Spending")) +
+  scale_color_manual(name = "Party",
+                     labels = c("Democrat", "Republican"), 
+                     values = c("blue", "red")) +
+  scale_fill_manual(name = "Party",
+                    labels = c("Democrat", "Republican"),
+                    values = c("blue", "red"))+
+  theme_bw() 
+```
